@@ -58,13 +58,13 @@ func indexCow(sl []string, s string) int {
 func main() {
 	var n, temp int
 	var aa string
-	const max_n = 10 // максимальное количество знаков
+	const maxN = 10 // максимальное количество знаков
 
 	fmt.Print("введите количество цифр : ")
 	for {
 		_, err := fmt.Scan(&n)
-		if err != nil || n <= 0 || n > max_n {
-			fmt.Print("введите число от 1 до ", max_n, ": ")
+		if err != nil || n <= 0 || n > maxN {
+			fmt.Print("введите число от 1 до ", maxN, ": ")
 		} else {
 			break
 		}
@@ -78,7 +78,7 @@ func main() {
 		zag[i] = string(s)
 		m[i] = string(s)
 	}
-	fmt.Println("загадано число : ", zz)
+	//fmt.Println("загадано число : ", zz)
 	popytka := 1
 
 	for aa != "end" {
