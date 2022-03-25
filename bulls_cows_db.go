@@ -40,7 +40,7 @@ func createTable(db *sql.DB) {
         id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
         "name" TEXT,
         "pas" TEXT,
-        "score" INTEGER);`
+        "score" INTEGER  DEFAULT 0);`
 	query, err := db.Prepare(users_table)
 	if err != nil {
 		log.Fatal(err)

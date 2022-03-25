@@ -1,0 +1,38 @@
+{{ define "game" }}
+
+{{ template "header" }}
+
+<main class="px-3">
+    <br>
+    <br>
+    <h1 class="cover-heading">{{ .Name }}&nbsp;&nbsp;{{ .Score }}</h1><br>
+
+    <div class="alert alert-danger">
+            {{ range .Sl }}
+            <h3>{{ . }}</h3>
+            {{ end }}
+    </div>
+
+    <form action="/game_app" method="post">
+        {{ if eq .Com "1" }}
+        <h3 style="color:#ff0000">Не правильное число!</h3><br>
+        {{ else }}
+        <h5>ПОПЫТКА: {{ .Popytka }}</h5>
+        {{ end }}
+
+        {{ if eq .Com "2" }}
+        <h3 style="color:#ffb700">Поздравляю, это ПОБЕДА!</h3><br>
+        <input type="submit" value="&nbsp;&nbsp; Выход &nbsp;&nbsp" title="Выход" formaction="/" formmethod="post" class="btn btn-warning"/>&nbsp;&nbsp;&nbsp;&nbsp;
+        <input type="submit" value="Повторить" title="NEW" formaction="/newgame" formmethod="post" class="btn btn-danger"/>
+        {{ else }}
+        <input autofocus type="text" name="in" id="in" placeholder="Введите число" class="form-control"><br>
+        <button class="btn btn-warning">Ok</button>
+        {{ end }}
+    </form>
+    <br>
+
+</main>
+
+{{ template "footer" }}
+
+{{ end }}

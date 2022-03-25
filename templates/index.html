@@ -20,13 +20,11 @@
     <br>
 
     <div class="alert alert-danger">
-        <ul>
         {{ range . }}
             <h3>{{ .Name }}  {{ .Score }}</h3>
         {{ else }}
             <p class="lead">Еще нет результатов.</p>
         {{ end }}
-        </ul>
     </div>
 
     <p class="lead">
