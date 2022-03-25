@@ -424,6 +424,20 @@ func app(w http.ResponseWriter, r *http.Request) {
 	//sl := []string{}
 	aa := r.FormValue("in")
 	session, _ := store.Get(r, "session-name")
+	t := fmt.Sprint(session.Values["N"])
+	n, _ := strconv.Atoi(t)                // кол-во цифр в загаданном числе
+	zz := fmt.Sprint(session.Values["ZZ"]) // загаданное число
+	temp_popytka := fmt.Sprint(session.Values["Popytka"])
+	popytka, err := strconv.Atoi(temp_popytka) // попытки
+	if err != nil {
+		fmt.Println("func app: Ошибка конвертации Atoi\n", err.Error())
+	}
+	//todo проверить, как читается срез из сессии
+	var x interface{} = session.Values["Sl"] // x имеет динамический тип
+	sl, ok := x.([]string)                   // sl имеет тип []string
+	fmt.Println("ok перевода =", ok)
+	fmt.Println(sl)
+
 	if aa == "" || len(aa) != N {
 		// не правильный ввод попытки
 		t, err := template.ParseFiles("templates/game.html",
@@ -433,55 +447,52 @@ func app(w http.ResponseWriter, r *http.Request) {
 		}
 		Game.Name = fmt.Sprint(session.Values["CurName"])
 		Game.Score = scoreUserDB(Game.Name)
-		popytka := fmt.Sprint(session.Values["Popytka"])
-		Game.Popytka, err = strconv.Atoi(popytka)
-		if err != nil {
-			fmt.Println("func app: Ошибка конвертации Atoi\n", err.Error())
-		}
+		Game.Popytka = popytka
 		Game.Com = "1" // чтоб вывести коментарий о неправильном вводе
-
-		//todo проверить, как читается срез из сессии
-		var x interface{} = session.Values["Sl"] // x имеет динамический тип
-		sl, ok := x.([]string)                   // sl имеет тип []string
-		fmt.Println("ok перевода =", ok)
-		fmt.Println(sl)
 		Game.Sl = sl
 		t.ExecuteTemplate(w, "game", Game)
 	} else {
+		// если правильно введена попытка
 		//todo прочитать все из сессии для игры
-		t := fmt.Sprint(session.Values["N"])
-		n, _ = strconv.Atoi(t)
-		var a []string
-		for i, s := range aa {
+
+		zag := make([]string, n)
+		a := make([]string, n)
+		m := make([]string, n)
+		for i, s := range zz { // раскладываем загаданное число
+			zag[i] = string(s)
+			m[i] = string(s)
+		}
+		for i, s := range aa { // раскладываем введенное число
 			a[i] = string(s)
 		}
 		// проверяем на быков
-		for i := 0; i < N; i++ {
-			if A[i] == Zag[i] {
-				M[i] = "b"
-				A[i] = "B"
+		for i := 0; i < n; i++ {
+			if a[i] == zag[i] {
+				m[i] = "b"
+				a[i] = "B"
 			}
 		}
 		// проверяем на коров
-		for i := 0; i < N; i++ {
-			temp = indexCow(M, A[i])
+		for i := 0; i < n; i++ {
+			temp = indexCow(m, a[i])
 			if temp > -1 {
-				M[temp] = "k"
+				m[temp] = "k"
 			}
 		}
-		if countCow(M, "b") == N {
-			// если соличество "b" == N т.е. все быки
+		//todo остановился где-то здесь
+		if countCow(m, "b") == n {
+			// если соличество "b" == n т.е. все быки. ПОБЕДА
 			fmt.Println("поздравляю! Вы угадали с ", Popytka, " попытки ")
-			stemp := fmt.Sprint(aa, " - ", countCow(M, "b"), " БЫКОВ  ", countCow(M, "k"), " КОРОВ")
+			stemp := fmt.Sprint(aa, " - ", countCow(m, "b"), " БЫКОВ  ", countCow(m, "k"), " КОРОВ")
 			fmt.Println(stemp)
 			Sl = append(Sl, stemp)
 
 			// подсчет очков
 			scor := 1
-			for i := 0; i < N; i++ {
+			for i := 0; i < n; i++ {
 				scor = scor * 10
 			}
-			maxPopyt := N * 10
+			maxPopyt := n * 10
 			scor = scor * (maxPopyt - Popytka + 1)
 			fmt.Println(scor, "очков")
 			newScore := addScoreDB(CurName, scor)
@@ -500,13 +511,14 @@ func app(w http.ResponseWriter, r *http.Request) {
 			t.ExecuteTemplate(w, "game", Game)
 
 		} else {
-			stemp := fmt.Sprint(aa, " - ", countCow(M, "b"), " БЫКОВ  ", countCow(M, "k"), " КОРОВ")
+			// если не победа
+			stemp := fmt.Sprint(aa, " - ", countCow(m, "b"), " БЫКОВ  ", countCow(m, "k"), " КОРОВ")
 			fmt.Println(stemp)
-			Sl = append(Sl, stemp)
-			Popytka++
+			sl = append(sl, stemp)
+			popytka++
 
-			for i := 0; i < N; i++ {
-				M[i] = Zag[i]
+			for i := 0; i < n; i++ {
+				m[i] = Zag[i]
 			}
 
 			t, err := template.ParseFiles("templates/game.html",
