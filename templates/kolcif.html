@@ -5,8 +5,12 @@
 <main class="px-3">
     <br>
     <h1 class="cover-heading">{{ .Name }}&nbsp;&nbsp;{{ .Score }}</h1><br>
+
+    <form action="/new_user" method="get">
+        <button autofocus class="btn btn-danger">другой пользователь</button>
+    </form>
+
     <form action="/new_game" method="post">
-        <input type="submit" value="Сменить профиль" title="другой пользователь" formaction="/new_user" formmethod="post" class="btn btn-danger">
         <br><br>
         {{ if eq .Id -1 }}
         <h3 style="color:#ff0000">Введено не правильное количество цифр</h3><br>

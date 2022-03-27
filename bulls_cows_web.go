@@ -23,15 +23,6 @@ type Users struct {
 	Score int
 }
 
-type UserDate struct {
-	// все, что хранится в сессии
-	CurName string // имя текущего пользователя, который в игре
-	N       int    // кол-во цивр в звгвдвнном числе
-	ZZ      string // загаданное число
-	//Zag     []string // срез для загаданного числа
-	Popytka int
-}
-
 type GameType struct {
 	// для передачи в форму game
 	Name    string
@@ -44,14 +35,7 @@ type GameType struct {
 var store = sessions.NewCookieStore([]byte(os.Getenv("SESSION_KEY")))
 var users []Users
 var Player Users
-var CurName string // имя текущего пользователя, который в игре
-var N int          // кол-во цивр в звгвдвнном числе
-var ZZ string      // загаданное число
-var A []string     // срез для ввода попыток
-var Zag []string   // срез для загаданного числа
-var M []string     // временный срез
-var Popytka int
-var Sl []string // история вводов
+
 var Game GameType
 
 func NewCryptoRand() int64 {
@@ -264,12 +248,12 @@ func newgame(w http.ResponseWriter, r *http.Request) {
 		Player.Id = 0 // чтоб не выводить в шаблон коментарий об ошибке
 		t.ExecuteTemplate(w, "kolcif", Player)
 	}
-} //sesOK
+}
 
 func verif_user(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	inPas := r.FormValue("password")
-	fmt.Println("login.html введено имя:", name, ", пароль: ", inPas)
+	fmt.Println("введено имя:", name, ", пароль: ", inPas)
 
 	pas := verifUserDB(name)
 	if inPas != pas || name == "" || inPas == "" {
@@ -289,7 +273,7 @@ func verif_user(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintln(w, "ошибка записи в сессию в func verif_user", err.Error())
 			return
 		}
-		fmt.Println(CurName, "успешно залогинен")
+		fmt.Println(name, "успешно залогинен")
 		t, err := template.ParseFiles("templates/kolcif.html",
 			"templates/header.html", "templates/footer.html")
 		if err != nil {
@@ -301,7 +285,7 @@ func verif_user(w http.ResponseWriter, r *http.Request) {
 		Player.Id = 0
 		t.ExecuteTemplate(w, "kolcif", Player)
 	}
-} //sesOK
+}
 
 func addNewUser(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
@@ -332,15 +316,28 @@ func addNewUser(w http.ResponseWriter, r *http.Request) {
 	} else {
 		fmt.Println("создаем нового пользователя в БД")
 		addUserDB(name, inPas)
-		CurName = name
+		curName := name
 		t, err := template.ParseFiles("templates/kolcif.html",
 			"templates/header.html", "templates/footer.html")
 		if err != nil {
 			fmt.Fprintf(w, err.Error())
 		}
+
+		session, _ := store.Get(r, "session-name")
+		session.Values["CurName"] = curName
+		session.Values["ZZ"] = ""         // загаданное число в string
+		session.Values["N"] = 0           // кол-во цифр в загаданном числе
+		session.Values["Sl"] = []string{} // обнуляем срез попыток
+		session.Values["Popytka"] = 0
+		err = session.Save(r, w)
+		if err != nil {
+			fmt.Fprintln(w, "ошибка обновления сессии в func addNewUser", err.Error())
+			return
+		}
+
 		Player = Users{}
-		Player.Name = CurName
-		Player.Score = scoreUserDB(CurName)
+		Player.Name = curName
+		Player.Score = scoreUserDB(curName)
 		Player.Id = 0
 		t.ExecuteTemplate(w, "kolcif", Player)
 	}
@@ -361,12 +358,14 @@ func new_user(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, err.Error())
 	}
 	t.ExecuteTemplate(w, "login", "0")
-} //sesOK
+}
 
 func new_game(w http.ResponseWriter, r *http.Request) {
 	kol := r.FormValue("kol")
 	session, _ := store.Get(r, "session-name")
-	fmt.Println("введено цифр для начала игры: ", kol)
+	tempName, _ := session.Values["CurName"]
+	curName := fmt.Sprint(tempName)
+	fmt.Println(curName+": введено цифр для начала игры: ", kol)
 	n, err := strconv.Atoi(kol)
 	if err != nil || n <= 0 || n > maxN {
 		// не правильно введено кол-во цифр для ночала игры
@@ -377,8 +376,7 @@ func new_game(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, err.Error())
 		}
 		Player = Users{}
-		curName, _ := session.Values["CurName"]
-		Player.Name = fmt.Sprint(curName)
+		Player.Name = curName
 		Player.Score = scoreUserDB(Player.Name)
 		Player.Id = -1 // для вывода сообщения об ошибке в шаблоне
 		t.ExecuteTemplate(w, "kolcif", Player)
@@ -417,35 +415,31 @@ func new_game(w http.ResponseWriter, r *http.Request) {
 		t.ExecuteTemplate(w, "game", Game)
 	}
 
-} //sesOK
+}
 
 func app(w http.ResponseWriter, r *http.Request) {
 	var temp int
-	//sl := []string{}
 	aa := r.FormValue("in")
 	session, _ := store.Get(r, "session-name")
-	t := fmt.Sprint(session.Values["N"])
-	n, _ := strconv.Atoi(t)                // кол-во цифр в загаданном числе
+	curName := fmt.Sprint(session.Values["CurName"])
+	tmp := fmt.Sprint(session.Values["N"])
+	n, _ := strconv.Atoi(tmp)              // кол-во цифр в загаданном числе
 	zz := fmt.Sprint(session.Values["ZZ"]) // загаданное число
 	temp_popytka := fmt.Sprint(session.Values["Popytka"])
 	popytka, err := strconv.Atoi(temp_popytka) // попытки
 	if err != nil {
 		fmt.Println("func app: Ошибка конвертации Atoi\n", err.Error())
 	}
-	//todo проверить, как читается срез из сессии
 	var x interface{} = session.Values["Sl"] // x имеет динамический тип
-	sl, ok := x.([]string)                   // sl имеет тип []string
-	fmt.Println("ok перевода =", ok)
-	fmt.Println(sl)
-
-	if aa == "" || len(aa) != N {
+	sl, _ := x.([]string)                    // sl имеет тип []string
+	if aa == "" || len(aa) != n {
 		// не правильный ввод попытки
 		t, err := template.ParseFiles("templates/game.html",
 			"templates/header.html", "templates/footer.html")
 		if err != nil {
 			fmt.Fprintf(w, err.Error())
 		}
-		Game.Name = fmt.Sprint(session.Values["CurName"])
+		Game.Name = curName
 		Game.Score = scoreUserDB(Game.Name)
 		Game.Popytka = popytka
 		Game.Com = "1" // чтоб вывести коментарий о неправильном вводе
@@ -453,8 +447,6 @@ func app(w http.ResponseWriter, r *http.Request) {
 		t.ExecuteTemplate(w, "game", Game)
 	} else {
 		// если правильно введена попытка
-		//todo прочитать все из сессии для игры
-
 		zag := make([]string, n)
 		a := make([]string, n)
 		m := make([]string, n)
@@ -479,13 +471,12 @@ func app(w http.ResponseWriter, r *http.Request) {
 				m[temp] = "k"
 			}
 		}
-		//todo остановился где-то здесь
 		if countCow(m, "b") == n {
 			// если соличество "b" == n т.е. все быки. ПОБЕДА
-			fmt.Println("поздравляю! Вы угадали с ", Popytka, " попытки ")
+			fmt.Println(curName+": поздравляю! Вы угадали с ", popytka, " попытки ")
 			stemp := fmt.Sprint(aa, " - ", countCow(m, "b"), " БЫКОВ  ", countCow(m, "k"), " КОРОВ")
 			fmt.Println(stemp)
-			Sl = append(Sl, stemp)
+			sl = append(sl, stemp)
 
 			// подсчет очков
 			scor := 1
@@ -493,9 +484,9 @@ func app(w http.ResponseWriter, r *http.Request) {
 				scor = scor * 10
 			}
 			maxPopyt := n * 10
-			scor = scor * (maxPopyt - Popytka + 1)
+			scor = scor * (maxPopyt - popytka + 1)
 			fmt.Println(scor, "очков")
-			newScore := addScoreDB(CurName, scor)
+			newScore := addScoreDB(curName, scor)
 			fmt.Println("ВСЕГО: ", newScore, "ОЧКОВ")
 
 			t, err := template.ParseFiles("templates/game.html",
@@ -503,22 +494,28 @@ func app(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				fmt.Fprintf(w, err.Error())
 			}
-			Game.Name = CurName
+			Game.Name = curName
 			Game.Score = newScore
-			Game.Popytka = Popytka
+			Game.Popytka = popytka
 			Game.Com = "2"
-			Game.Sl = Sl
+			Game.Sl = sl
 			t.ExecuteTemplate(w, "game", Game)
 
 		} else {
 			// если не победа
 			stemp := fmt.Sprint(aa, " - ", countCow(m, "b"), " БЫКОВ  ", countCow(m, "k"), " КОРОВ")
-			fmt.Println(stemp)
+			fmt.Println(curName + ": " + stemp)
 			sl = append(sl, stemp)
 			popytka++
-
+			session.Values["Sl"] = sl // обновляем срез попыток
+			session.Values["Popytka"] = popytka
+			err := session.Save(r, w)
+			if err != nil {
+				fmt.Fprintln(w, "ошибка обновления сессии в func app", err.Error())
+				return
+			}
 			for i := 0; i < n; i++ {
-				m[i] = Zag[i]
+				m[i] = zag[i]
 			}
 
 			t, err := template.ParseFiles("templates/game.html",
@@ -526,15 +523,24 @@ func app(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				fmt.Fprintf(w, err.Error())
 			}
-			Game.Name = CurName
-			Game.Score = scoreUserDB(CurName)
-			Game.Popytka = Popytka
+			Game.Name = curName
+			Game.Score = scoreUserDB(curName)
+			Game.Popytka = popytka
 			Game.Com = "0"
-			Game.Sl = Sl
+			Game.Sl = sl
 
 			t.ExecuteTemplate(w, "game", Game)
 		}
 	}
+}
+
+func exit(w http.ResponseWriter, r *http.Request) {
+	t, err := template.ParseFiles("templates/exit.html",
+		"templates/header.html", "templates/footer.html")
+	if err != nil {
+		fmt.Fprintf(w, err.Error())
+	}
+	t.ExecuteTemplate(w, "exit", nil)
 }
 
 func handleFunc() {
@@ -545,9 +551,9 @@ func handleFunc() {
 	http.HandleFunc("/new_game", new_game)
 	http.HandleFunc("/add_new_user", addNewUser)
 	http.HandleFunc("/game_app", app)
+	http.HandleFunc("/exit", exit)
 
-	http.Handle("/static/", http.StripPrefix("/static/",
-		http.FileServer(http.Dir("./static/"))))
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
 
 	http.ListenAndServe(":5000", nil)
 }
