@@ -213,7 +213,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 	defer db.Close()
 
 	// Выборка данных
-	record, err := db.Query("SELECT * FROM users ORDER BY score")
+	record, err := db.Query("SELECT * FROM users ORDER BY score DESC")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -690,9 +690,8 @@ func newConfig() {
 func main() {
 	data, err := os.ReadFile("config.json")
 	if err != nil {
-		if err.Error() == "open test.json: The system cannot find the file specified." {
-			fmt.Println("файл конфигурации не найден, создается новый.\n" +
-				"пароль администратора: 2666")
+		if err.Error() == "open config.json: The system cannot find the file specified." {
+			fmt.Println("файл конфигурации не найден, создается новый.")
 			newConfig()
 		} else {
 			// если ошибка открытия, но не отсутствие файла
