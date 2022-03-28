@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/sessions"
 	_ "github.com/mattn/go-sqlite3"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"math/big"
 	"net/http"
@@ -681,14 +682,14 @@ func newConfig() {
 	ConfigGame.MaxN = 10
 	ConfigGame.PasAdmin = "2666"
 	data, err := json.Marshal(ConfigGame)
-	err = os.WriteFile("config.json", data, 0600)
+	err = ioutil.WriteFile("config.json", data, 0600)
 	if err != nil {
 		panic(err)
 	}
 }
 
 func main() {
-	data, err := os.ReadFile("config.json")
+	data, err := ioutil.ReadFile("config.json")
 	if err != nil {
 		if err.Error() == "open config.json: The system cannot find the file specified." {
 			fmt.Println("файл конфигурации не найден, создается новый.")
