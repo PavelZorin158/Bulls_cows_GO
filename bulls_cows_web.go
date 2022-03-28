@@ -3,6 +3,7 @@ package main
 import (
 	crypto "crypto/rand"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"github.com/gorilla/sessions"
 	_ "github.com/mattn/go-sqlite3"
@@ -32,11 +33,25 @@ type GameType struct {
 	Com     string   // для вывода коментария в шаблон
 }
 
+/*type AdminType struct {
+	// для передачи в форму admin
+	Name    string
+	Pasword string
+	Score   int
+}*/
+
+type Config struct {
+	MaxN     int
+	PasAdmin string
+}
+
+var ConfigGame Config
 var store = sessions.NewCookieStore([]byte(os.Getenv("SESSION_KEY")))
 var users []Users
 var Player Users
-
 var Game GameType
+
+//var Admin AdminType
 
 func NewCryptoRand() int64 {
 	// генерирует случайное число
@@ -198,7 +213,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 	defer db.Close()
 
 	// Выборка данных
-	record, err := db.Query("SELECT * FROM users")
+	record, err := db.Query("SELECT * FROM users ORDER BY score")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -210,7 +225,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("User: %d %s %s %d\n", user.Id, user.Name, user.Pas, user.Score)
+		//fmt.Printf("User: %d %s %s %d\n", user.Id, user.Name, user.Pas, user.Score)
 		users = append(users, user)
 	}
 	t.ExecuteTemplate(w, "index", users)
@@ -392,14 +407,7 @@ func new_game(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintln(w, "ошибка обновления сессии в func new_game", err.Error())
 			return
 		}
-		//A = make([]string, n)   // срез для ввода попыток
-		//Zag = make([]string, n) // срез для загаданного числа
-		//M = make([]string, n)   // временный срез
-		//for i, s := range ZZ {
-		//	Zag[i] = string(s)
-		//	M[i] = string(s)
-		//}
-		//Sl = []string{} // обнуляем срез попыток
+
 		fmt.Println("загадано число : ", zz)
 		t, err := template.ParseFiles("templates/game.html",
 			"templates/header.html", "templates/footer.html")
@@ -504,7 +512,7 @@ func app(w http.ResponseWriter, r *http.Request) {
 		} else {
 			// если не победа
 			stemp := fmt.Sprint(aa, " - ", countCow(m, "b"), " БЫКОВ  ", countCow(m, "k"), " КОРОВ")
-			fmt.Println(curName + ": " + stemp)
+			fmt.Println(curName + "(" + zz + "): " + stemp)
 			sl = append(sl, stemp)
 			popytka++
 			session.Values["Sl"] = sl // обновляем срез попыток
@@ -543,6 +551,113 @@ func exit(w http.ResponseWriter, r *http.Request) {
 	t.ExecuteTemplate(w, "exit", nil)
 }
 
+func adminLogin(w http.ResponseWriter, r *http.Request) {
+	t, err := template.ParseFiles("templates/adminlogin.html",
+		"templates/header.html", "templates/footer.html")
+	if err != nil {
+		fmt.Fprintf(w, err.Error())
+	}
+	t.ExecuteTemplate(w, "adminlogin", "0")
+}
+
+func verifAdmin(w http.ResponseWriter, r *http.Request) {
+	inPas := r.FormValue("password")
+	fmt.Println("введен пароль администратора:", inPas)
+
+	pas := ConfigGame.PasAdmin
+	if inPas != pas || inPas == "" {
+		fmt.Println("не совпал пароль: ", inPas, " и ", pas)
+		t, err := template.ParseFiles("templates/adminlogin.html",
+			"templates/header.html", "templates/footer.html")
+		if err != nil {
+			fmt.Fprintf(w, err.Error())
+		}
+		t.ExecuteTemplate(w, "adminlogin", "1")
+	} else {
+		// АВТОРИЗУЕМ АДМИНИСТРАТОРА
+		session, _ := store.Get(r, "session-name")
+		session.Values["CurName"] = "admin"
+		err := session.Save(r, w)
+		if err != nil {
+			fmt.Fprintln(w, "ошибка записи в сессию в func verifAdmin", err.Error())
+			return
+		}
+		fmt.Println("Администратор успешно залогинен")
+		defer admin(w, r)
+	}
+}
+
+func adminEdit(w http.ResponseWriter, r *http.Request) {
+	var user Users
+	user.Id, _ = strconv.Atoi(r.FormValue("id"))
+	user.Name = r.FormValue("name")
+	user.Pas = r.FormValue("pas")
+	user.Score, _ = strconv.Atoi(r.FormValue("score"))
+	fmt.Println(user)
+
+	db, err := sql.Open("sqlite3", "cow.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	records := `UPDATE users SET name = ?, pas = ?, score = ? WHERE id LIKE ?`
+	query, err := db.Prepare(records)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = query.Exec(user.Name, user.Pas, user.Score, user.Id)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer admin(w, r)
+}
+
+func admin(w http.ResponseWriter, r *http.Request) {
+	session, _ := store.Get(r, "session-name")
+	if fmt.Sprint(session.Values["CurName"]) != "admin" {
+		// если админ не залогинен в сессии
+		t, err := template.ParseFiles("templates/adminlogin.html",
+			"templates/header.html", "templates/footer.html")
+		if err != nil {
+			fmt.Fprintf(w, err.Error())
+		}
+		t.ExecuteTemplate(w, "adminlogin", "0")
+	} else {
+		// если админ залогинен в сессии
+
+		db, err := sql.Open("sqlite3", "cow.db")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer db.Close()
+
+		// Выборка данных
+		record, err := db.Query("SELECT * FROM users")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer record.Close()
+		users := []Users{} //обнуляем срез
+		for record.Next() {
+			var user Users
+			err = record.Scan(&user.Id, &user.Name, &user.Pas, &user.Score)
+			if err != nil {
+				panic(err)
+			}
+			users = append(users, user)
+		}
+
+		t, err := template.ParseFiles("templates/admin.html",
+			"templates/header.html", "templates/footer.html")
+		if err != nil {
+			fmt.Fprintf(w, err.Error())
+		}
+		t.ExecuteTemplate(w, "admin", users)
+	}
+}
+
 func handleFunc() {
 	http.HandleFunc("/", index)
 	http.HandleFunc("/newgame", newgame)
@@ -551,6 +666,10 @@ func handleFunc() {
 	http.HandleFunc("/new_game", new_game)
 	http.HandleFunc("/add_new_user", addNewUser)
 	http.HandleFunc("/game_app", app)
+	http.HandleFunc("/admin_login", adminLogin)
+	http.HandleFunc("/verif_admin", verifAdmin)
+	http.HandleFunc("/admin", admin)
+	http.HandleFunc("/admin_edit", adminEdit)
 	http.HandleFunc("/exit", exit)
 
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
@@ -558,7 +677,37 @@ func handleFunc() {
 	http.ListenAndServe(":5000", nil)
 }
 
+func newConfig() {
+	ConfigGame.MaxN = 10
+	ConfigGame.PasAdmin = "2666"
+	data, err := json.Marshal(ConfigGame)
+	err = os.WriteFile("config.json", data, 0600)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func main() {
+	data, err := os.ReadFile("config.json")
+	if err != nil {
+		if err.Error() == "open test.json: The system cannot find the file specified." {
+			fmt.Println("файл конфигурации не найден, создается новый.\n" +
+				"пароль администратора: 2666")
+			newConfig()
+		} else {
+			// если ошибка открытия, но не отсутствие файла
+			fmt.Println(err.Error())
+			return
+		}
+	} else {
+		err = json.Unmarshal(data, &ConfigGame)
+		if err != nil {
+			fmt.Println("файл конфигурации поврежден! Создан новый. \n", err)
+			newConfig()
+		}
+	}
+	fmt.Println("Пароль администратора: ", ConfigGame.PasAdmin)
+
 	createTableDB()
 	handleFunc()
 }
