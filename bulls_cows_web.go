@@ -675,7 +675,7 @@ func handleFunc() {
 
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
 
-	http.ListenAndServe(":5000", nil)
+	log.Println(http.ListenAndServe(":5001", nil))
 }
 
 func newConfig() {
