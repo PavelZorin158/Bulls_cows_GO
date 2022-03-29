@@ -380,6 +380,23 @@ func new_game(w http.ResponseWriter, r *http.Request) {
 	kol := r.FormValue("kol")
 	session, _ := store.Get(r, "session-name")
 	tempName, _ := session.Values["CurName"]
+	if tempName == nil {
+		fmt.Println("странно, что пользователь не авторизован!")
+		t, err := template.ParseFiles("templates/login.html",
+			"templates/header.html", "templates/footer.html")
+		if err != nil {
+			fmt.Println("ошибка создания сборки темплейта")
+			fmt.Fprintf(w, err.Error())
+			panic(err)
+		}
+		err = t.ExecuteTemplate(w, "login", "0")
+		if err != nil {
+			fmt.Println("ошибка запуска темплейта")
+			fmt.Fprintf(w, err.Error())
+			panic(err)
+		}
+		return
+	}
 	curName := fmt.Sprint(tempName)
 	fmt.Println(curName+": введено цифр для начала игры: ", kol)
 	n, err := strconv.Atoi(kol)
@@ -423,7 +440,6 @@ func new_game(w http.ResponseWriter, r *http.Request) {
 
 		t.ExecuteTemplate(w, "game", Game)
 	}
-
 }
 
 func app(w http.ResponseWriter, r *http.Request) {
