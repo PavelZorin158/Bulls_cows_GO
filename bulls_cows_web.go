@@ -34,13 +34,6 @@ type GameType struct {
 	Com     string   // для вывода коментария в шаблон
 }
 
-/*type AdminType struct {
-	// для передачи в форму admin
-	Name    string
-	Pasword string
-	Score   int
-}*/
-
 type Config struct {
 	MaxN     int
 	PasAdmin string
@@ -51,8 +44,6 @@ var store = sessions.NewCookieStore([]byte(os.Getenv("SESSION_KEY")))
 var users []Users
 var Player Users
 var Game GameType
-
-//var Admin AdminType
 
 func NewCryptoRand() int64 {
 	// генерирует случайное число
@@ -226,7 +217,6 @@ func index(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			panic(err)
 		}
-		//fmt.Printf("User: %d %s %s %d\n", user.Id, user.Name, user.Pas, user.Score)
 		users = append(users, user)
 	}
 	t.ExecuteTemplate(w, "index", users)
@@ -443,6 +433,7 @@ func new_game(w http.ResponseWriter, r *http.Request) {
 }
 
 func app(w http.ResponseWriter, r *http.Request) {
+	// ЭТО ГЛАВНАЯ ФУНКЦИЯ С ЛОГИКОЙ ИГРЫ !
 	var temp int
 	aa := r.FormValue("in")
 	session, _ := store.Get(r, "session-name")
